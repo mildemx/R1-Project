@@ -39,7 +39,7 @@ prices_indicators <- prices %>%
     log_volume = log(volume+1)) #we transform so values are not so extreme
 
 
-model_data <- prices_indicators %>% #we filter so pur data contains no NAs
+model_data <- prices_indicators %>% #we filter so our data contains no NAs
   filter(!is.na(up_tomorrow),
          !is.na(lag_ret_1),
          !is.na(lag_ret_2),
@@ -62,5 +62,43 @@ y_train <- train_data$up_tomorrow #only dependent var
 x_test <- test_data %>% select(-date, -up_tomorrow)
 y_test <- test_data$up_tomorrow
 
+
+
+
+#Logit Regression as baseline/benchmark
+logit <- glm(up_tomorrow ~ ., 
+             data=train_data %>% select(-date, -symbol), #we dont take the date because we dont treat it as a predictor
+             family=binomial(link="logit"))
+logit_pred_prob <- predict(logit, newdata=test_data %>% select(-date, -symbol), type="response") #get predicted probabilities
+logit_pred_class <- ifelse(logit_pred_prob > 0.5,1,0) #turn predicted probabilities into 0/1
+
+library(ROCR)
+pred_obj_logit <- prediction(logit_pred_prob, as.numeric(y_test)) #put predictions and true outcomes in one object
+auc_obj_logit <- performance(pred_obj_logit, "auc")@y.values[[1]]
+auc_logit 
+
+roc_perf_logit <- performance(pred_obj_logit, "tpr", "fpr")
+plot(roc_perf_logit, main="ROC Curve - Logit")
+
+LL_logit <- sum(ifelse(y_test==1, log(logit_pred_prob), log(1-logit_pred_prob))) #Log likelihood: how well predicted probs fit observed outcomes  
+dev_norm_logit <- -2*LL_logit / length(y_test) #Norm. deviance: model fit
+threshold_logit <- 0.5
+cmatrix_logit <- table(Predicted=logit_pred_prob > threshold_logit, Actual=y_test) #Confusion matrix
+accuracy_logit <- sum(diag(cmatrix_logit)/sum(cmatrix_logit)) #Accuracy: proportion of correctly classified obs.
+precision_logit <- cmatrix_logit[2,2]/sum(cmatrix_logit[2,]) #Precision: how many obs predicted as positive are actually positive
+recall_logit <- cmatrix_logit[2,2]/sum(cmatrix_logit[,2]) #Recall: how many of the actuall positives were identified correctly 
+f1_logit <- 2*precision_logit*recall_logit/(precision_logit+recall_logit) #F1: balance between precision and recall
+
+results_logit <- data.frame(Model="Logit", 
+                            AUC=auc_logit, 
+                            Accuracy=accuracy_logit,
+                            Precision=precision_logit, 
+                            Recall=recall_logit, 
+                            F1=f1_logit, 
+                            Dev_Norm=dev_norm_logit)   
+results_logit
+     
+     
+     
 
 
