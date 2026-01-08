@@ -101,4 +101,22 @@ results_logit
      
      
 
+#LASSO - we run logit here and use lasso for variable selection only as lasso uses ols and it cannot be used for a binary outcome
+library(lars)
+x_lasso <- model.matrix(up_tomorrow ~., data=train_data %>% select(-date, -symbol)) #required by lars (numeric matrix)
+head(x_lasso)
 
+x_lasso <- x_lasso[,-1] #drop intercept
+
+lasso <- lars(x=x_lasso, y=y_train, trace=TRUE)
+lasso
+plot(lasso)
+
+cv_lasso <- cv.lars(x=x_lasso, y=y_train, K=100) #cross validation
+s_min_lasso <- cv_lasso$index[which.min(cv_lasso$cv)] #how strong the lasso penalty should be (s that minimizes CV error)
+coef_lasso <- coef(lasso, s=s_min_lasso, mode="fraction") #the lasso coefs at the CV-optimal shrinkage level
+sel_vars_lasso <- names(coef_lasso)[coef_lasso!=0] #take the names of the selected predictors
+
+f_lasso <- as.formula(paste("up_tomorrow ~", paste(sel_vars_lasso, collapse="+"))) 
+logit_lasso <- glm(f_lasso, data=train_data %>% select(-date, -symbol), family=binomial(link="logit"))
+lasso_pred_prob <- predict(logit_lasso, newdata=test_data %>% select(-date, -symbol), type="response")
