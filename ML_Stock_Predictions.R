@@ -120,3 +120,44 @@ sel_vars_lasso <- names(coef_lasso)[coef_lasso!=0] #take the names of the select
 f_lasso <- as.formula(paste("up_tomorrow ~", paste(sel_vars_lasso, collapse="+"))) 
 logit_lasso <- glm(f_lasso, data=train_data %>% select(-date, -symbol), family=binomial(link="logit"))
 lasso_pred_prob <- predict(logit_lasso, newdata=test_data %>% select(-date, -symbol), type="response")
+
+
+eval_model <- function(pred_prob, y_test, model_name, threshold = 0.5) {
+  #LL
+  LL <- sum(ifelse(y_test==1, log(pred_prob), log(1-pred_prob)))
+  
+  #Normalized deiance
+  dev_norm <- -2*LL/length(y_test)
+  
+  #Confusion matrix
+  cmatrix <- table(Predicted=pred_prob>threshold, Actual=y_test)
+  
+  #Accuracy
+  accuracy <- sum(diag(cmatrix))/sum(cmatrix)
+  
+  #Precision, Recall, F1
+  precision <- cmatrix[2,2]/ sum(cmatrix[2,])
+  recall <- cmatrix[2,2]/sum(cmatrix[,2])
+  f1 <- 2*precision*recall/(precision+recall)
+  
+  #AUC
+  auc <- performance(prediction(pred_prob, y_test), "auc")@y.values[[1]]
+  
+  #Output
+  data.frame(Model=model_name, 
+             AUC=auc, 
+             Accuracy=accuracy,
+             Precision=precision, 
+             Recall=recall, 
+             F1=f1, 
+             Dev_Norm=dev_norm)   
+} #function to give the comparison metrics
+
+results_lasso <- eval_model(lasso_pred_prob, y_test, "LASSO")
+results_lasso
+
+
+
+
+
+
