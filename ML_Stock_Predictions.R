@@ -160,4 +160,45 @@ results_lasso
 
 
 
+#Decision Tree
+library(rpart)
+
+dec_tree <- rpart(as.factor(up_tomorrow) ~ ., data=train_data %>% select(-date, -symbol), method="class")
+dec_tree_pred_prob <- predict(dec_tree, newdata=test_data %>% select(-date, -symbol), type="prob")[,2] #take the y=1 prob
+head(dec_tree_pred_prob)
+plot(dec_tree)
+text(dec_tree) #todays return, adjusted close
+results_dec_tree <- eval_model(dec_tree_pred_prob, y_test, "Decision Tree")
+results_dec_tree
+
+
+
+#Random Forest
+library(randomForest)
+set.seed(1234)
+
+rand_f <- randomForest(x=train_data %>% select(-date, -symbol, -up_tomorrow), #predictors
+                   y=as.factor(train_data$up_tomorrow), #outcome
+                   ntree=33,
+                   nodesize=7, #min number of obs at terminal node
+                   importance=TRUE)
+rand_f_pred_prob <- predict(rand_f, newdata=test_data %>% select(-date, -symbol, -up_tomorrow), type="prob")[,2] #get probabs
+head(rand_f_pred_prob)
+
+rand_f_import <- importance(rand_f, type=1)
+head(rand_f_import)
+varImpPlot(rand_f, type=1) #to see how much each variable helps with prediction
+     
+results_rand_f <- eval_model(rand_f_pred_prob, y_test, "Random Forest")
+results_rand_f
+
+
+
+
+#All results
+results_all <- rbind(results_logit, results_lasso, results_dec_tree, results_rand_f)
+results_all
+
+
+
 
