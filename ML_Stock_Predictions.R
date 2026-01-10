@@ -15,7 +15,7 @@ head(prices_raw)
 # Creating returns and target var
 prices <- prices_raw %>%
   arrange(date) %>%
-  mutate(return = log(close/lag(close)), # creating log returns
+  mutate(return = log(adjusted/lag(adjusted)), # creating log returns
          up_tomorrow = ifelse(lead(return) > 0, 1, 0)) #if tomorrow is positive, then 1, 0 otherwise 
          
 head(prices)
@@ -29,11 +29,15 @@ library(zoo) #for rollapply
 prices_indicators <- prices %>%
   mutate(
     lag_ret_1 = lag(return, 1),
-    lag_ret_2 = lag(return, 2),
-    sma_5 = SMA(close, n=5), #simple moving average (5-day)
-    sma_10 = SMA(close, n=10),
+    lag_ret_2 = lag(return, 2), #short term
+    lag_ret_10 = lag(return, 10),
+    lag_ret_30 = lag(return, 30), #medium term 
+    sma_5 = SMA(adjusted, n=5), #simple moving average (5-day)
+    sma_10 = SMA(adjusted, n=10),
+    sma_30 = SMA(adjusted, n=30),
     vol_10 = rollapply(return, width=10, FUN=sd, fill=NA, align="right"), #10-day rolling volatility 
-    mom_10 = close/lag(close, 10) - 1, #a momentum indicator
+    mom_10 = adjusted/lag(adjusted, 10) - 1, #a momentum indicator
+    mom_30 = adjusted/lag(adjusted, 30) - 1,
     range_hl = high - low, #intraday range
     co_diff = close - open,
     log_volume = log(volume+1)) #we transform so values are not so extreme
@@ -43,11 +47,34 @@ model_data <- prices_indicators %>% #we filter so our data contains no NAs
   filter(!is.na(up_tomorrow),
          !is.na(lag_ret_1),
          !is.na(lag_ret_2),
+         !is.na(lag_ret_10),
+         !is.na(lag_ret_30),
          !is.na(sma_5),
          !is.na(sma_10),
+         !is.na(sma_30),
          !is.na(vol_10),
-         !is.na(mom_10))
+         !is.na(mom_10),
+         !is.na(mom_30))
 summary(model_data)
+
+
+
+#Price and trend indicators
+library(ggplot2)
+
+ggplot(prices_indicators, aes(x=date)) +  #SMAs are very short windowed but at least we can visualise the price movement
+  geom_line(aes(y=adjusted, color="Adjusted Close")) +
+  geom_line(aes(y=sma_5, color="SMA 5")) + 
+  geom_line(aes(y=sma_30, color="SMA 30")) +
+  scale_color_manual(values = c("Adjusted Price" = "black",
+                                "SMA 5" = "red",
+                                "SMA 30" = "purple")) +
+  labs(title = "SPY Adjusted Close and Short-Term MAs", y="Price", x="Date")
+
+
+
+
+
 
 
 #Splitting the data into train and test
@@ -56,7 +83,7 @@ train_size <- floor(0.85*n)
 train_data <- model_data[1:train_size, ]
 test_data <- model_data[(train_size+1):n, ]
 
-x_train <- train_data %>% select(-date, -up_tomorrow) #create a matrix with only predictor vars
+x_train <- train_data %>% select(-date, -up_tomorrow) #a matrix with only predictor vars
 y_train <- train_data$up_tomorrow #only dependent var
 
 x_test <- test_data %>% select(-date, -up_tomorrow)
@@ -117,10 +144,9 @@ s_min_lasso <- cv_lasso$index[which.min(cv_lasso$cv)] #how strong the lasso pena
 coef_lasso <- coef(lasso, s=s_min_lasso, mode="fraction") #the lasso coefs at the CV-optimal shrinkage level
 sel_vars_lasso <- names(coef_lasso)[coef_lasso!=0] #take the names of the selected predictors
 
-f_lasso <- as.formula(paste("up_tomorrow ~", paste(sel_vars_lasso, collapse="+"))) 
+f_lasso <- as.formula(paste("up_tomorrow ~ ", paste(sel_vars_lasso, collapse="+")))  #penalises all variables to 0 -> need to elaborate on that in the paper
 logit_lasso <- glm(f_lasso, data=train_data %>% select(-date, -symbol), family=binomial(link="logit"))
 lasso_pred_prob <- predict(logit_lasso, newdata=test_data %>% select(-date, -symbol), type="response")
-
 
 eval_model <- function(pred_prob, y_test, model_name, threshold = 0.5) {
   #LL
