@@ -66,7 +66,7 @@ ggplot(prices_indicators, aes(x=date)) +  #SMAs are very short windowed but at l
   geom_line(aes(y=adjusted, color="Adjusted Close")) +
   geom_line(aes(y=sma_5, color="SMA 5")) + 
   geom_line(aes(y=sma_30, color="SMA 30")) +
-  scale_color_manual(values = c("Adjusted Price" = "black",
+  scale_color_manual(values = c("Adjusted Close" = "black",
                                 "SMA 5" = "red",
                                 "SMA 30" = "purple")) +
   labs(title = "SPY Adjusted Close and Short-Term MAs", y="Price", x="Date")
@@ -89,7 +89,40 @@ y_train <- train_data$up_tomorrow #only dependent var
 x_test <- test_data %>% select(-date, -up_tomorrow)
 y_test <- test_data$up_tomorrow
 
-
+eval_model <- function(pred_prob, y_test, model_name, threshold = 0.5) {
+  #Log likelihood: how well predicted probs fit observed outcomes  
+  LL <- sum(ifelse(y_test==1, log(pred_prob), log(1-pred_prob)))
+  
+  #Normalized deviance: model fit
+  dev_norm <- -2*LL/length(y_test)
+  
+  #Confusion matrix
+  cmatrix <- table(Predicted=pred_prob>threshold, Actual=y_test)
+  
+  #Accuracy: proportion of correctly classified obs.
+  accuracy <- sum(diag(cmatrix))/sum(cmatrix)
+  
+  #Precision: how many obs predicted as positive are actually positive
+  precision <- cmatrix[2,2]/ sum(cmatrix[2,])
+  
+  #Recall: how many of the actuall positives were identified correctly 
+  recall <- cmatrix[2,2]/sum(cmatrix[,2])
+  
+  #F1: balance between precision and recall
+  f1 <- 2*precision*recall/(precision+recall)
+  
+  #AUC
+  auc <- performance(prediction(pred_prob, y_test), "auc")@y.values[[1]]
+  
+  #Output
+  data.frame(Model=model_name, 
+             AUC=auc, 
+             Accuracy=accuracy,
+             Precision=precision, 
+             Recall=recall, 
+             F1=f1, 
+             Dev_Norm=dev_norm)   
+} #function to give the comparison metrics
 
 
 #Logit Regression as baseline/benchmark
@@ -107,25 +140,8 @@ auc_logit
 roc_perf_logit <- performance(pred_obj_logit, "tpr", "fpr")
 plot(roc_perf_logit, main="ROC Curve - Logit")
 
-LL_logit <- sum(ifelse(y_test==1, log(logit_pred_prob), log(1-logit_pred_prob))) #Log likelihood: how well predicted probs fit observed outcomes  
-dev_norm_logit <- -2*LL_logit / length(y_test) #Norm. deviance: model fit
-threshold_logit <- 0.5
-cmatrix_logit <- table(Predicted=logit_pred_prob > threshold_logit, Actual=y_test) #Confusion matrix
-accuracy_logit <- sum(diag(cmatrix_logit)/sum(cmatrix_logit)) #Accuracy: proportion of correctly classified obs.
-precision_logit <- cmatrix_logit[2,2]/sum(cmatrix_logit[2,]) #Precision: how many obs predicted as positive are actually positive
-recall_logit <- cmatrix_logit[2,2]/sum(cmatrix_logit[,2]) #Recall: how many of the actuall positives were identified correctly 
-f1_logit <- 2*precision_logit*recall_logit/(precision_logit+recall_logit) #F1: balance between precision and recall
-
-results_logit <- data.frame(Model="Logit", 
-                            AUC=auc_logit, 
-                            Accuracy=accuracy_logit,
-                            Precision=precision_logit, 
-                            Recall=recall_logit, 
-                            F1=f1_logit, 
-                            Dev_Norm=dev_norm_logit)   
+results_logit <- eval_model(logit_pred_prob, y_test, "Logit") 
 results_logit
-     
-     
      
 
 #LASSO - we run logit here and use lasso for variable selection only as lasso uses ols and it cannot be used for a binary outcome
@@ -148,36 +164,7 @@ f_lasso <- as.formula(paste("up_tomorrow ~ ", paste(sel_vars_lasso, collapse="+"
 logit_lasso <- glm(f_lasso, data=train_data %>% select(-date, -symbol), family=binomial(link="logit"))
 lasso_pred_prob <- predict(logit_lasso, newdata=test_data %>% select(-date, -symbol), type="response")
 
-eval_model <- function(pred_prob, y_test, model_name, threshold = 0.5) {
-  #LL
-  LL <- sum(ifelse(y_test==1, log(pred_prob), log(1-pred_prob)))
-  
-  #Normalized deiance
-  dev_norm <- -2*LL/length(y_test)
-  
-  #Confusion matrix
-  cmatrix <- table(Predicted=pred_prob>threshold, Actual=y_test)
-  
-  #Accuracy
-  accuracy <- sum(diag(cmatrix))/sum(cmatrix)
-  
-  #Precision, Recall, F1
-  precision <- cmatrix[2,2]/ sum(cmatrix[2,])
-  recall <- cmatrix[2,2]/sum(cmatrix[,2])
-  f1 <- 2*precision*recall/(precision+recall)
-  
-  #AUC
-  auc <- performance(prediction(pred_prob, y_test), "auc")@y.values[[1]]
-  
-  #Output
-  data.frame(Model=model_name, 
-             AUC=auc, 
-             Accuracy=accuracy,
-             Precision=precision, 
-             Recall=recall, 
-             F1=f1, 
-             Dev_Norm=dev_norm)   
-} #function to give the comparison metrics
+
 
 results_lasso <- eval_model(lasso_pred_prob, y_test, "LASSO")
 results_lasso
@@ -220,10 +207,30 @@ results_rand_f
 
 
 
+#GAM
+library(mgcv)
+gam_formula <- as.formula(up_tomorrow ~ lag_ret_1 + lag_ret_2 + lag_ret_10 + lag_ret_30 + #linearly modeled: very noisy
+                            s(sma_5) + s(sma_10) + s(sma_30) + #non-linearly modeled: try to capture regimes
+                            s(vol_10) + s(mom_10) + s(mom_30) +
+                            s(range_hl) + s(co_diff) + s(log_volume))
+
+gam_logit <- gam(gam_formula, data=train_data %>% select(-date, -symbol), family=binomial(link="logit"))
+summary(gam_logit)
+gam_logit$converged #to check if gam found a solution
+
+gam_pred_prob <- predict(gam_logit, newdata=test_data %>% select(-date, -symbol), type="response")
+head(gam_pred_prob)
+
+results_gam_logit <- eval_model(as.numeric(gam_pred_prob), y_test, "GAM-Logit")
+results_gam_logit
+
+
+
 
 #All results
-results_all <- rbind(results_logit, results_lasso, results_dec_tree, results_rand_f)
-results_all
+results_all <- rbind(results_logit, results_lasso, results_dec_tree, results_rand_f, results_gam_logit)
+results_all # we chose a very narrow prediction horizon (next day). 
+#It is well established in finance, that in short time-horizons stock returns are extremely noisy. As such, tomorrows price could be nothing different than a Drunkard's (Random) Walk.
 
 
 
