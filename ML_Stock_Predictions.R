@@ -229,9 +229,12 @@ results_gam_logit
 
 #All results
 results_all <- rbind(results_logit, results_lasso, results_dec_tree, results_rand_f, results_gam_logit)
-results_all # we chose a very narrow prediction horizon (next day). 
+results_all 
+# we chose a very narrow prediction horizon (next day). 
 #It is well established in finance, that in short time-horizons stock returns are extremely noisy. As such, tomorrows price could be nothing different than a Drunkard's (Random) Walk.
-
+#also the choice of train_data horizon will have an effect of the predictions
+# how far back in time we should go in order to predict future's return is an interesting question
+# if we go really far back, was the market/the stock the same as it is now...?
 
 
 
