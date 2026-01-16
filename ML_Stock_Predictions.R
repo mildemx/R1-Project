@@ -48,7 +48,7 @@ prices_indicators <- prices %>% arrange(date) %>%
     
     dist_sma_5 = (adjusted/sma_5) - 1, # we normalize because the price is non-stationary (could be 200 early in the period but 500 at a later stage) - specifically needed for decision trees
     dist_sma_10 = (adjusted/sma_10) - 1,
-    dist_sma_30 = (adjusted/sma_10) - 1,
+    dist_sma_30 = (adjusted/sma_30) - 1,
     
     vol_10 = rollapply(return, width=10, FUN=sd, fill=NA, align="right"), #10-day rolling volatility 
     
@@ -58,9 +58,9 @@ prices_indicators <- prices %>% arrange(date) %>%
     range_hl = (high - low)/adjusted, #intra-day range (normalized)
     co_diff = (close - open)/adjusted, #day-difference (normalized)
     
-    vol_ma_20 = rollapply(volume, width=20, FUN=mean, fill=NA, alight="right"), #20-day moving-average volume
+    vol_ma_20 = rollapply(volume, width=20, FUN=mean, fill=NA, align="right"), #20-day moving-average volume
     vol_rel = volume/vol_ma_20, #normalized volume measure
-    log_vol_rel = log(volume+1) #we transform in case of skewness
+    log_vol_rel = log(vol_rel) #we transform in case of skewness
   ) %>% 
   select(date, symbol, up_tomorrow,
          lag_ret_1, lag_ret_2, lag_ret_10, lag_ret_30,
