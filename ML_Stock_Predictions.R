@@ -5,7 +5,7 @@ library(ggplot2)
 library(TTR) #for SMA and RSI
 library(zoo) #for rollapply
 library(ROCR)
-library(lars) # delete
+library(lars) 
 library(rpart)
 library(randomForest)
 library(mgcv)
@@ -196,7 +196,7 @@ x_test_mat <- as.matrix(test_data %>% select(-date, -symbol, -up_tomorrow))
 
 
 set.seed(1234)
-cv_lasso2 <- cv.glmnet(x=x_train_mat, y=y_train_vec, dimily="binomial", alpha=1, nfolds=10)
+cv_lasso2 <- cv.glmnet(x=x_train_mat, y=y_train_vec, family="binomial", alpha=1, nfolds=10)
 plot(cv_lasso2)
 
 lasso_pred_prob2 <- predict(cv_lasso2, newx=x_test_mat, s="lambda.min", type="response")
@@ -212,14 +212,27 @@ sel_vars_lasso2
 
 
 
-#Decision Tree
+#Decision Tree 
 dec_tree <- rpart(as.factor(up_tomorrow) ~ ., data=train_data %>% select(-date, -symbol), method="class")
 dec_tree_pred_prob <- predict(dec_tree, newdata=test_data %>% select(-date, -symbol), type="prob")[,2] #take the y=1 prob
 head(dec_tree_pred_prob)
 plot(dec_tree)
 text(dec_tree) #todays return, adjusted close
+print(dec_tree)
+dec_tree$cptable
 results_dec_tree <- eval_model(dec_tree_pred_prob, y_test, "Decision Tree")
 results_dec_tree
+
+#control
+tree_ctrl <- rpart.control(cp=0.001, maxdepth=5, minsplit=20) #deeper decision tree fits the training data better but generalizes worse out of sample (overfitting)
+dec_tree_ctrl <- rpart(as.factor(up_tomorrow) ~ ., data=train_data %>% select(-date, -symbol), method="class", control=tree_ctrl)
+dec_tree_pred_prob_ctrl <- predict(dec_tree_ctrl, newdata=test_data %>% select(-date, -symbol), type="prob")[,2] 
+plot(dec_tree_ctrl)
+text(dec_tree_ctrl)
+results_dec_tree_ctrl <- eval_model(dec_tree_pred_prob_ctrl, y_test, "Decision Tree")
+results_dec_tree_ctrl
+print(dec_tree_ctrl)
+dec_tree_ctrl$cptable #for appendix
 
 
 
@@ -270,7 +283,7 @@ results_naive
 
 
 #All results
-results_all <- rbind(results_logit, results_lasso, results_lasso2, results_dec_tree, results_rand_f, results_gam_logit, results_naive)
+results_all <- rbind(results_logit, results_lasso, results_lasso2, results_dec_tree, results_dec_tree_ctrl, results_rand_f, results_gam_logit, results_naive)
 results_all 
 # we chose a very narrow prediction horizon (next day). 
 #It is well established in finance, that in short time-horizons stock returns are extremely noisy. As such, tomorrows price could be nothing different than a Drunkard's (Random) Walk.
