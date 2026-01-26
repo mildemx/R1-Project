@@ -290,6 +290,8 @@ results_all
 #also the choice of train_data horizon will have an effect of the predictions
 # how far back in time we should go in order to predict future's return is an interesting question
 # if we go really far back, was the market/the stock the same as it is now...?
+# in addition, there are countless technical, economic and company-level indicators which can be used in stock price prediction
+# this exercise does not fully commit to predicting tomorrow's stock price, rather it's an exploration of the ML methods learned in class
 
 
 
