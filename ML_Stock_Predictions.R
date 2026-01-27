@@ -140,7 +140,7 @@ eval_model <- function(pred_prob, y_test, model_name, threshold = 0.5) {
 } #function to give the comparison metrics
 
 
-#Logit Regression as baseline/benchmark
+#Logit Regression
 logit <- glm(up_tomorrow ~ ., 
              data=train_data %>% select(-date, -symbol), #we dont take the date because we dont treat it as a predictor
              family=binomial(link="logit"))
