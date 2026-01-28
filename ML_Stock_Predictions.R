@@ -229,7 +229,7 @@ dec_tree_ctrl <- rpart(as.factor(up_tomorrow) ~ ., data=train_data %>% select(-d
 dec_tree_pred_prob_ctrl <- predict(dec_tree_ctrl, newdata=test_data %>% select(-date, -symbol), type="prob")[,2] 
 plot(dec_tree_ctrl)
 text(dec_tree_ctrl)
-results_dec_tree_ctrl <- eval_model(dec_tree_pred_prob_ctrl, y_test, "Decision Tree")
+results_dec_tree_ctrl <- eval_model(dec_tree_pred_prob_ctrl, y_test, "Ctrl Decision Tree")
 results_dec_tree_ctrl
 print(dec_tree_ctrl)
 dec_tree_ctrl$cptable #for appendix
