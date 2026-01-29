@@ -1,3 +1,7 @@
+packages <- c("tidyquant", "dplyr", "tidyr", "ggplot2", "TTR", "zoo",
+              "ROCR", "lars", "rpart", "randomForest", "mgcv", "glmnet")
+install.packages(setdiff(packages, rownames(installed.packages())))
+
 library(tidyquant)
 library(dplyr)
 library(tidyr)
@@ -150,7 +154,7 @@ logit_pred_class <- ifelse(logit_pred_prob > 0.5,1,0) #turn predicted probabilit
 
 pred_obj_logit <- prediction(logit_pred_prob, as.numeric(y_test)) #put predictions and true outcomes in one object
 auc_obj_logit <- performance(pred_obj_logit, "auc")@y.values[[1]]
-auc_logit 
+auc_obj_logit 
 
 roc_perf_logit <- performance(pred_obj_logit, "tpr", "fpr")
 plot(roc_perf_logit, main="ROC Curve - Logit")
